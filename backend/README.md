@@ -38,6 +38,26 @@ python manage.py runserver
 - `PermissionGroup`：权限组，维护权限标识列表和默认数据范围。
 - `LoginAuditLog`：登录、失败登录和登出审计日志。
 
+## SQL Server 数据库脚本
+
+课程作业要求提交 SQL Server 建表代码，完整脚本位于 `sql/`：
+
+- `sql/01_schema.sql`：创建 `ForeignTradeConnectDB` 数据库和完整后台表结构。
+- `sql/02_seed_data.sql`：插入答辩演示样例数据。
+- `sql/README.md`：说明执行顺序、表覆盖范围和样例数据内容。
+
+执行顺序：
+
+```sql
+-- 1. 先执行
+sql/01_schema.sql
+
+-- 2. 再执行
+sql/02_seed_data.sql
+```
+
+`01_schema.sql` 覆盖认证权限、店铺客户、商品 SKU、仓库库存、采购订单、销售订单、价格成本、财务事实、报表查询模型和外部数据迁移等核心后台模型。Django 原型当前使用 SQLite 便于本地演示，课程数据库后台以 SQL Server 脚本为准。
+
 ## API 简表
 
 - `POST /api/auth/login/`：账号密码登录，返回 `access`、`refresh` 和用户信息。
