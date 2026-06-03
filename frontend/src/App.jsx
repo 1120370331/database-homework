@@ -1,14 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  App,
+  App as AntApp,
   Button,
   DatePicker,
+  Dropdown,
   Form,
   Input,
+  InputNumber,
   Modal,
   Select,
   Space,
+  Switch,
   Table,
+  Tag,
   Typography,
 } from 'antd';
 import {
@@ -18,217 +22,196 @@ import {
   BulbOutlined,
   ClockCircleOutlined,
   CloseOutlined,
-  ColumnHeightOutlined,
-  CopyOutlined,
   DeleteOutlined,
   DownOutlined,
   EditOutlined,
-  ExportOutlined,
   EyeOutlined,
   FileTextOutlined,
-  FilterOutlined,
   HomeOutlined,
+  LogoutOutlined,
   PlusOutlined,
   ProductOutlined,
+  ReloadOutlined,
   SearchOutlined,
   SettingOutlined,
+  ShopOutlined,
+  TeamOutlined,
   UserOutlined,
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
+import { api, auth } from './api/client';
+import { getOptionLabel, getRecordLabel, resourceMap, resources } from './config/resources';
 
-const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
 
-const initialUsers = [
-  {
-    id: 1,
-    name: '陈炜嘉',
-    role: '管理员',
-    email: 'chen@example.com',
-    status: '启用',
-    createdAt: '2026-04-12 下午1:45',
-    lastLogin: '2026-06-03 上午9:10',
-  },
-  {
-    id: 2,
-    name: '邝文涛',
-    role: '运营',
-    email: 'kuang@example.com',
-    status: '启用',
-    createdAt: '2026-04-08 下午9:26',
-    lastLogin: '2026-06-02 下午5:32',
-  },
-  {
-    id: 3,
-    name: '苏秉铂',
-    role: '财务',
-    email: 'su@example.com',
-    status: '停用',
-    createdAt: '2026-04-08 下午8:02',
-    lastLogin: '2026-05-29 下午3:20',
-  },
-];
+const groupIcons = {
+  '认证与权限': <UserOutlined />,
+  '组织与店铺': <ShopOutlined />,
+  主数据: <ProductOutlined />,
+  业务单据: <AppstoreOutlined />,
+  报表配置: <FileTextOutlined />,
+};
 
-const initialProducts = [
-  {
-    id: 101,
-    name: '外贸女装连衣裙',
-    sku: 'WT-DRESS-001',
-    category: '服装',
-    warehouse: '广州仓',
-    stock: 86,
-    status: '库存正常',
-    createdAt: '2026-04-12 下午1:45',
-  },
-  {
-    id: 102,
-    name: '跨境运动鞋',
-    sku: 'WT-SHOES-021',
-    category: '鞋履',
-    warehouse: '深圳仓',
-    stock: 18,
-    status: '库存偏低',
-    createdAt: '2026-04-08 下午9:26',
-  },
-  {
-    id: 103,
-    name: '便携收纳包',
-    sku: 'WT-BAG-078',
-    category: '箱包',
-    warehouse: '义乌仓',
-    stock: 0,
-    status: '缺货',
-    createdAt: '2026-04-08 下午8:02',
-  },
-  {
-    id: 104,
-    name: '无线充电器',
-    sku: 'WT-CHG-066',
-    category: '数码',
-    warehouse: '广州仓',
-    stock: 42,
-    status: '库存正常',
-    createdAt: '2026-04-05 下午10:30',
-  },
-];
+const statusColor = {
+  active: 'green',
+  disabled: 'default',
+  locked: 'red',
+  draft: 'default',
+  approved: 'blue',
+  in_transit: 'gold',
+  received: 'green',
+  posted: 'green',
+  cancelled: 'red',
+};
 
-const initialReports = [
-  {
-    id: 'R-20260601',
-    type: '销售日报',
-    owner: '运营组',
-    amount: 32860,
-    status: '已生成',
-    cycle: '日',
-    createdAt: '2026-06-01',
-  },
-  {
-    id: 'R-20260602',
-    type: '库存预警',
-    owner: '仓储组',
-    amount: 18,
-    status: '已生成',
-    cycle: '日',
-    createdAt: '2026-06-02',
-  },
-  {
-    id: 'R-20260603',
-    type: '财务汇总',
-    owner: '财务组',
-    amount: 126,
-    status: '待复核',
-    cycle: '月',
-    createdAt: '2026-06-03',
-  },
-];
+function formatDateTime(value) {
+  if (!value) return '-';
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm') : String(value);
+}
 
-const primaryNav = [
-  { key: 'home', label: '首页', icon: <HomeOutlined /> },
-  { key: 'products', label: '商品库存', icon: <ProductOutlined /> },
-  { key: 'users', label: '用户管理', icon: <UserOutlined /> },
-  { key: 'reports', label: '报表查询', icon: <FileTextOutlined /> },
-];
+function formatDate(value) {
+  if (!value) return '-';
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format('YYYY-MM-DD') : String(value);
+}
 
-const systemNav = [
-  { label: '认证模型', icon: <SettingOutlined /> },
-  { label: '数据字典', icon: <AppstoreOutlined /> },
-  { label: '建表脚本', icon: <ColumnHeightOutlined /> },
-];
+function isWritableField(field, editing) {
+  if (field.readOnly) return false;
+  if (field.createOnly && editing?.id) return false;
+  return true;
+}
 
-const productColumns = [
-  {
-    title: '商品',
-    dataIndex: 'name',
-    width: 260,
-    render: (_, record) => (
-      <div>
-        <div className="item-name">{record.name}</div>
-        <div className="item-sku">{record.sku}</div>
-      </div>
-    ),
-  },
-  { title: '分类', dataIndex: 'category', width: 110 },
-  { title: '仓库', dataIndex: 'warehouse', width: 120 },
-  { title: '库存', dataIndex: 'stock', width: 96, sorter: (a, b) => Number(a.stock) - Number(b.stock) },
-  {
-    title: '状态',
-    dataIndex: 'status',
-    width: 120,
-    render: (value) => <StatusBadge value={value} />,
-  },
-  { title: '创建时间', dataIndex: 'createdAt', width: 170 },
-];
+function getRowKey(resource) {
+  return resource.primaryKey || 'id';
+}
 
-function normalizeFilterChips(filterChips) {
-  return filterChips.map((item) => {
-    if (typeof item === 'string') {
-      return { key: item, label: item, dataIndex: item };
+function getRelatedResources(resource) {
+  return Array.from(new Set(resource.fields
+    .filter((field) => field.resource)
+    .map((field) => field.resource)));
+}
+
+function getInitialValues(record, resource) {
+  if (!record) return {};
+  const values = { ...record };
+  resource.fields.forEach((field) => {
+    if ((field.type === 'date' || field.type === 'datetime') && values[field.name]) {
+      const parsed = dayjs(values[field.name]);
+      values[field.name] = parsed.isValid() ? parsed : undefined;
     }
-    return item;
   });
+  return values;
 }
 
-function getFilterValueLabel(chip, value) {
-  if (!chip?.options) {
-    return value;
-  }
-  return chip.options.find((option) => option.value === value)?.label || value;
+function normalizePayload(values, resource, editing) {
+  const payload = {};
+  resource.fields.forEach((field) => {
+    if (!isWritableField(field, editing)) return;
+    if (!(field.name in values)) return;
+    let value = values[field.name];
+    if (field.type === 'date') {
+      value = value ? dayjs(value).format('YYYY-MM-DD') : null;
+    }
+    if (field.type === 'datetime') {
+      value = value ? dayjs(value).toISOString() : null;
+    }
+    if (field.type === 'password' && editing?.id && !value) return;
+    if (value === undefined) return;
+    payload[field.name] = value;
+  });
+  return payload;
 }
 
-function matchFilterValue(record, chip, value) {
-  if (value === undefined || value === null || value === '') {
-    return true;
+function renderDisplayValue(value, field, lookups) {
+  if (value === null || value === undefined || value === '') return '-';
+  if (field.type === 'boolean') return value ? <Tag color="green">是</Tag> : <Tag>否</Tag>;
+  if (field.type === 'select') {
+    return <Tag color={statusColor[value] || 'blue'}>{getOptionLabel(field.options, value)}</Tag>;
   }
-  const rawValue = record[chip.dataIndex];
-  if (chip.type === 'select' || chip.match === 'equals') {
-    return String(rawValue) === String(value);
+  if (field.type === 'date') return formatDate(value);
+  if (field.type === 'datetime') return formatDateTime(value);
+  if (field.type === 'foreign') {
+    const related = lookups[field.resource]?.byId?.[value];
+    return getRecordLabel(related) || value;
   }
-  return String(rawValue ?? '').toLowerCase().includes(String(value).toLowerCase());
+  if (field.type === 'foreign-multiple') {
+    const values = Array.isArray(value) ? value : [];
+    return values.length
+      ? values.map((id) => getRecordLabel(lookups[field.resource]?.byId?.[id]) || id).join('、')
+      : '-';
+  }
+  if (field.type === 'number' && value !== '') {
+    return Number.isNaN(Number(value)) ? value : Number(value).toLocaleString('zh-CN');
+  }
+  return String(value);
 }
 
-function StatusBadge({ value }) {
-  const className = value === '缺货' || value === '停用'
-    ? 'badge badge-out-stock'
-    : value === '库存偏低' || value === '待复核'
-      ? 'badge badge-low-stock'
-      : 'badge badge-in-stock';
-  return <span className={className}>{value}</span>;
+function renderFormControl(field, lookups) {
+  if (field.type === 'textarea') return <Input.TextArea rows={3} placeholder={`请输入${field.label}`} />;
+  if (field.type === 'password') return <Input.Password placeholder="留空表示不修改" autoComplete="new-password" />;
+  if (field.type === 'number') {
+    return <InputNumber min={field.min} precision={field.precision} style={{ width: '100%' }} placeholder={`请输入${field.label}`} />;
+  }
+  if (field.type === 'boolean') return <Switch checkedChildren="是" unCheckedChildren="否" />;
+  if (field.type === 'select') return <Select allowClear options={field.options} placeholder={`请选择${field.label}`} />;
+  if (field.type === 'date') return <DatePicker style={{ width: '100%' }} />;
+  if (field.type === 'datetime') return <DatePicker showTime style={{ width: '100%' }} />;
+  if (field.type === 'foreign' || field.type === 'foreign-multiple') {
+    const options = (lookups[field.resource]?.items || []).map((item) => ({
+      label: getRecordLabel(item),
+      value: item[getRowKey(resourceMap[field.resource])],
+    }));
+    return (
+      <Select
+        allowClear
+        showSearch
+        mode={field.type === 'foreign-multiple' ? 'multiple' : undefined}
+        optionFilterProp="label"
+        options={options}
+        placeholder={`请选择${field.label}`}
+      />
+    );
+  }
+  return <Input placeholder={`请输入${field.label}`} />;
 }
 
 function LoginPage({ onLogin }) {
+  const { message } = AntApp.useApp();
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (values) => {
+    setLoading(true);
+    try {
+      const session = await auth.login(values);
+      message.success('登录成功');
+      onLogin(session);
+    } catch (error) {
+      message.error(error.message || '登录失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main className="login-page">
       <section className="card login-card">
         <div className="workspace-avatar">外</div>
         <Title level={2}>外贸通电商智控系统</Title>
-        <Text type="secondary">数据库大作业前台模板</Text>
-        <Form layout="vertical" className="login-form" onFinish={onLogin} initialValues={{ username: 'admin' }}>
+        <Text type="secondary">数据库课程大作业前端控制台</Text>
+        <Form
+          layout="vertical"
+          className="login-form"
+          onFinish={submit}
+          initialValues={{ username: 'admin', password: 'admin123' }}
+        >
           <Form.Item label="账号" name="username" rules={[{ required: true, message: '请输入账号' }]}>
-            <Input placeholder="admin" />
+            <Input autoComplete="username" placeholder="admin" />
           </Form.Item>
           <Form.Item label="密码" name="password" rules={[{ required: true, message: '请输入密码' }]}>
-            <Input.Password placeholder="任意密码" />
+            <Input.Password autoComplete="current-password" placeholder="admin123" />
           </Form.Item>
-          <Button className="btn btn-primary" htmlType="submit" block>
+          <Button className="btn btn-primary" type="primary" htmlType="submit" block loading={loading}>
             登录系统
           </Button>
         </Form>
@@ -238,39 +221,45 @@ function LoginPage({ onLogin }) {
 }
 
 function Sidebar({ activeKey, onChange }) {
+  const groups = useMemo(() => resources.reduce((acc, resource) => {
+    acc[resource.group] ||= [];
+    acc[resource.group].push(resource);
+    return acc;
+  }, {}), []);
+
   return (
     <aside className="sidebar">
-      <div className="workspace-switcher">
+      <button type="button" className="workspace-switcher" onClick={() => onChange('home')}>
         <div className="workspace-avatar">外</div>
         <span>外贸通</span>
-        <span className="workspace-caret">⌄</span>
-      </div>
-
+        <span className="workspace-caret"><DownOutlined /></span>
+      </button>
       <div className="sidebar-label">工作台</div>
       <nav className="sidebar-section">
-        {primaryNav.map((item) => (
-          <button
-            type="button"
-            key={item.key}
-            className={`sidebar-item ${activeKey === item.key ? 'active' : ''}`}
-            onClick={() => onChange(item.key)}
-          >
-            {item.icon}
-            <span>{item.label}</span>
-          </button>
-        ))}
+        <button type="button" className={`sidebar-item ${activeKey === 'home' ? 'active' : ''}`} onClick={() => onChange('home')}>
+          <HomeOutlined />
+          <span>首页</span>
+        </button>
       </nav>
-
-      <div className="sidebar-label">系统设计</div>
-      <nav className="sidebar-section">
-        {systemNav.map((item) => (
-          <button type="button" className="sidebar-item muted" key={item.label}>
-            {item.icon}
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </nav>
-
+      {Object.entries(groups).map(([group, items]) => (
+        <div key={group}>
+          <div className="sidebar-label">{group}</div>
+          <nav className="sidebar-section">
+            {items.map((item) => (
+              <button
+                type="button"
+                key={item.key}
+                className={`sidebar-item ${activeKey === item.key ? 'active' : ''}`}
+                onClick={() => onChange(item.key)}
+                title={item.label}
+              >
+                {groupIcons[group] || <AppstoreOutlined />}
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+      ))}
       <div className="sidebar-bottom">
         <span>数据库大作业</span>
       </div>
@@ -278,110 +267,174 @@ function Sidebar({ activeKey, onChange }) {
   );
 }
 
-function Topbar() {
+function Topbar({ keyword, onKeywordChange, onRefresh, user, onLogout }) {
+  const menu = {
+    items: [
+      { key: 'user', label: user?.username || '当前用户', icon: <UserOutlined />, disabled: true },
+      { type: 'divider' },
+      { key: 'logout', label: '退出登录', icon: <LogoutOutlined /> },
+    ],
+    onClick: ({ key }) => {
+      if (key === 'logout') onLogout();
+    },
+  };
+
   return (
     <header className="topbar">
       <div className="search-box">
         <SearchOutlined />
-        <span>搜索商品、用户、报表</span>
+        <Input
+          bordered={false}
+          value={keyword}
+          onChange={(event) => onKeywordChange(event.target.value)}
+          placeholder="搜索当前模块"
+          allowClear
+        />
       </div>
       <div className="topbar-actions">
-        <AppstoreOutlined />
+        <ReloadOutlined onClick={onRefresh} title="刷新" />
         <BellOutlined />
         <SettingOutlined />
-        <PlusOutlined className="accent-icon" />
+        <Dropdown menu={menu} placement="bottomRight">
+          <button type="button" className="topbar-user">
+            <span>{user?.username || '用户'}</span>
+            <DownOutlined />
+          </button>
+        </Dropdown>
       </div>
     </header>
   );
 }
 
-function DashboardHome({ products }) {
-  const lowStockCount = products.filter((item) => item.status !== '库存正常').length;
-  const overviewCards = [
-    { title: '销售额', value: '¥32,860.00', meta: '较上一周期 +12.4%', kind: 'line' },
-    { title: '库存预警', value: lowStockCount, meta: `${products.length} 个商品正在监控`, kind: 'empty' },
-    { title: '报表快照', value: initialReports.length, meta: '已保存查询模型', kind: 'flat' },
-    { title: '系统用户', value: initialUsers.length, meta: '含管理员、运营、财务', kind: 'dotted' },
+function DashboardHome({ onOpen }) {
+  const { message } = AntApp.useApp();
+  const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState({
+    products: [],
+    balances: [],
+    sales: [],
+    purchases: [],
+    reports: [],
+    users: [],
+  });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [products, balances, sales, purchases, reports, users] = await Promise.all([
+        api.list('/api/operations/products/'),
+        api.list('/api/operations/inventory-balances/'),
+        api.list('/api/operations/sales-documents/'),
+        api.list('/api/operations/purchase-orders/'),
+        api.list('/api/operations/report-query-models/'),
+        api.list('/api/auth/users/'),
+      ]);
+      setStats({ products, balances, sales, purchases, reports, users });
+    } catch (error) {
+      message.error(error.message || '首页数据加载失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [message]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const totalSales = stats.sales.reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
+  const lowStock = stats.balances.filter((item) => {
+    const product = stats.products.find((target) => target.id === item.product);
+    return product?.safety_stock !== null && product?.safety_stock !== undefined && Number(item.quantity) <= Number(product.safety_stock);
+  });
+  const pendingPurchases = stats.purchases.filter((item) => ['draft', 'approved', 'in_transit'].includes(item.status));
+
+  const cards = [
+    { title: '销售额', value: `¥${totalSales.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`, meta: `${stats.sales.length} 张销售单据`, kind: 'line' },
+    { title: '库存预警', value: lowStock.length, meta: `${stats.balances.length} 条库存余额`, kind: 'empty' },
+    { title: '待处理采购', value: pendingPurchases.length, meta: '草稿、已审核、在途订单', kind: 'dotted' },
+    { title: '报表模型', value: stats.reports.length, meta: `${stats.users.length} 个系统用户`, kind: 'flat' },
   ];
 
   return (
     <>
       <section className="today-section">
         <div className="section-head">
-          <h1>今天</h1>
-          <button type="button" className="small-outline">刷新</button>
+          <div>
+            <h1>今天</h1>
+            <p>基于 Django 后端实时汇总的经营概览。</p>
+          </div>
+          <button type="button" className="small-outline" onClick={load}><ReloadOutlined />刷新</button>
         </div>
         <div className="today-grid">
           <div className="today-main">
             <div className="money-row">
               <div>
                 <button type="button" className="metric-select">销售额<DownOutlined /></button>
-                <strong>¥32,860.00</strong>
-                <span>下午1:59</span>
+                <strong>{cards[0].value}</strong>
+                <span>{loading ? '正在同步' : formatDateTime(new Date().toISOString())}</span>
               </div>
               <div>
-                <button type="button" className="metric-select">昨日<DownOutlined /></button>
-                <strong>¥28,640.00</strong>
+                <button type="button" className="metric-select">库存余额<DownOutlined /></button>
+                <strong>{stats.balances.reduce((sum, item) => sum + Number(item.quantity || 0), 0).toLocaleString('zh-CN')}</strong>
               </div>
             </div>
             <div className="timeline">
-              <span>上午12:00</span>
+              <span>00:00</span>
               <div className="timeline-line" />
-              <span>下午12:00</span>
+              <span>24:00</span>
             </div>
             <div className="balance-row">
               <div>
-                <button type="button" className="metric-select">库存金额<DownOutlined /></button>
-                <strong>¥96,420.00</strong>
+                <button type="button" className="metric-select">业务单据<DownOutlined /></button>
+                <strong>{stats.sales.length + stats.purchases.length}</strong>
               </div>
-              <a>查看明细</a>
+              <a onClick={() => onOpen('salesDocuments')}>查看销售单据</a>
             </div>
           </div>
           <aside className="recommend-card">
             <button type="button" className="close-button"><CloseOutlined /></button>
             <h3>待处理事项</h3>
-            <p>3 个低库存商品需要补货复核。</p>
-            <a>查看库存</a>
-            <p>1 份财务汇总报表等待确认。</p>
-            <a>进入报表</a>
+            <p>{lowStock.length} 个库存余额低于安全库存，需要复核补货。</p>
+            <a onClick={() => onOpen('inventoryBalances')}>查看库存</a>
+            <p>{pendingPurchases.length} 张采购订单仍在处理中。</p>
+            <a onClick={() => onOpen('purchaseOrders')}>进入采购</a>
             <div className="api-box">
               <div>
                 <strong>后端状态</strong>
-                <a>认证接口</a>
+                <a onClick={() => onOpen('users')}>认证接口</a>
               </div>
-              <p><span>JWT</span><code>/api/token/</code></p>
-              <p><span>用户</span><code>/api/auth/register/</code></p>
+              <p><span>JWT</span><code>/api/auth/login/</code></p>
+              <p><span>业务</span><code>/api/operations/products/</code></p>
             </div>
           </aside>
         </div>
       </section>
-
       <section className="overview-section">
         <div className="section-head overview-head">
           <div>
             <h2>您的概览</h2>
             <div className="filter-row">
               <span>日期范围&nbsp;&nbsp;最近 7 天<DownOutlined /></span>
-              <span>每天<DownOutlined /></span>
-              <span>对比&nbsp;&nbsp;上一期<DownOutlined /></span>
+              <span>粒度&nbsp;&nbsp;每天<DownOutlined /></span>
+              <span>来源&nbsp;&nbsp;Django API<DownOutlined /></span>
             </div>
           </div>
           <Space>
-            <button type="button" className="small-outline">添加</button>
-            <button type="button" className="small-outline">编辑</button>
+            <button type="button" className="small-outline" onClick={() => onOpen('reportQueryModels')}>报表模型</button>
+            <button type="button" className="small-outline" onClick={() => onOpen('metrics')}>指标定义</button>
           </Space>
         </div>
         <div className="overview-grid compact-overview">
-          {overviewCards.map((card) => (
+          {cards.map((card) => (
             <div className="overview-card" key={card.title}>
               <div className="card-title-row">
                 <span>{card.title}</span>
-                <button type="button">•••</button>
+                <button type="button">...</button>
               </div>
               <strong>{card.value}</strong>
               <p>{card.meta}</p>
               <div className={`chart-placeholder ${card.kind}`}>
-                {card.kind === 'empty' ? <span>无数据</span> : null}
+                {card.kind === 'empty' ? <span>{lowStock.length ? '需要关注' : '暂无预警'}</span> : null}
               </div>
             </div>
           ))}
@@ -391,139 +444,124 @@ function DashboardHome({ products }) {
   );
 }
 
-function DataListPage({
-  title,
-  createLabel,
-  data,
-  setData,
-  columns,
-  fields,
-  createRecord,
-  segments,
-  filterChips,
-  notice,
-}) {
-  const { message } = App.useApp();
+function ResourcePage({ resource, globalKeyword, refreshSignal }) {
+  const { message } = AntApp.useApp();
+  const [data, setData] = useState([]);
+  const [lookups, setLookups] = useState({});
+  const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState('');
-  const [activeSegment, setActiveSegment] = useState(segments[0]?.key || 'all');
-  const [fieldFilters, setFieldFilters] = useState({});
-  const [filterModal, setFilterModal] = useState(null);
+  const [filters, setFilters] = useState({});
+  const [ordering, setOrdering] = useState('');
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [form] = Form.useForm();
-  const [filterForm] = Form.useForm();
+  const rowKey = getRowKey(resource);
 
-  const filterOptions = useMemo(() => normalizeFilterChips(filterChips), [filterChips]);
-  const activeFilterEntries = filterOptions.filter((chip) => fieldFilters[chip.key]);
+  const effectiveKeyword = globalKeyword || keyword;
 
-  const filteredData = useMemo(() => {
-    const segment = segments.find((item) => item.key === activeSegment);
-    const text = keyword.trim();
-    return data
-      .filter((item) => (segment?.filter ? segment.filter(item) : true))
-      .filter((item) => filterOptions.every((chip) => matchFilterValue(item, chip, fieldFilters[chip.key])))
-      .filter((item) => {
-        if (!text) return true;
-        return Object.values(item).some((value) => String(value).includes(text));
-      });
-  }, [activeSegment, data, fieldFilters, filterOptions, keyword, segments]);
+  const loadLookups = useCallback(async () => {
+    const relatedKeys = getRelatedResources(resource);
+    if (!relatedKeys.length) {
+      setLookups({});
+      return;
+    }
+    const entries = await Promise.all(relatedKeys.map(async (key) => {
+      const related = resourceMap[key];
+      const items = related ? await api.list(related.path) : [];
+      const relatedKey = related ? getRowKey(related) : 'id';
+      return [key, {
+        items,
+        byId: Object.fromEntries(items.map((item) => [item[relatedKey], item])),
+      }];
+    }));
+    setLookups(Object.fromEntries(entries));
+  }, [resource]);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = { ...filters, search: effectiveKeyword, ordering };
+      const items = await api.list(resource.path, params);
+      setData(items);
+    } catch (error) {
+      message.error(error.message || `${resource.label}加载失败`);
+    } finally {
+      setLoading(false);
+    }
+  }, [effectiveKeyword, filters, message, ordering, resource]);
+
+  useEffect(() => {
+    loadLookups().catch((error) => message.error(error.message || '关联数据加载失败'));
+  }, [loadLookups, message]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData, refreshSignal]);
 
   const openCreate = () => {
     setEditing({});
     form.resetFields();
+    const defaults = {};
+    resource.fields.forEach((field) => {
+      if (field.type === 'boolean') defaults[field.name] = false;
+    });
+    form.setFieldsValue(defaults);
   };
 
   const openEdit = (record) => {
     setEditing(record);
-    form.setFieldsValue(record);
-  };
-
-  const openFilter = (chip, mode = 'single') => {
-    const target = chip || filterOptions[0];
-    setFilterModal({ mode, chip: target });
-    filterForm.setFieldsValue({
-      fieldKey: target.key,
-      value: fieldFilters[target.key] || undefined,
-    });
-  };
-
-  const changeAdvancedFilterField = (fieldKey) => {
-    const nextChip = filterOptions.find((chip) => chip.key === fieldKey) || filterOptions[0];
-    setFilterModal((current) => ({ ...(current || {}), chip: nextChip }));
-    filterForm.setFieldsValue({
-      fieldKey,
-      value: fieldFilters[fieldKey] || undefined,
-    });
-  };
-
-  const applyFilter = async () => {
-    const values = await filterForm.validateFields();
-    const fieldKey = values.fieldKey || filterModal?.chip?.key;
-    const chip = filterOptions.find((item) => item.key === fieldKey);
-    const value = values.value;
-    setFieldFilters((current) => {
-      const next = { ...current };
-      if (value === undefined || value === null || value === '') {
-        delete next[fieldKey];
-      } else {
-        next[fieldKey] = value;
-      }
-      return next;
-    });
-    setFilterModal(null);
-    message.success(chip ? `已筛选${chip.label}` : '已筛选');
-  };
-
-  const clearFilter = (fieldKey) => {
-    setFieldFilters((current) => {
-      const next = { ...current };
-      delete next[fieldKey];
-      return next;
-    });
-  };
-
-  const clearAllFilters = () => {
-    setFieldFilters({});
-    setKeyword('');
-  };
-
-  const renderFilterControl = (chip) => {
-    if (!chip) return null;
-    if (chip.type === 'select') {
-      return <Select placeholder={`请选择${chip.label}`} options={chip.options} allowClear />;
-    }
-    return <Input placeholder={`请输入${chip.label}`} allowClear />;
+    form.setFieldsValue(getInitialValues(record, resource));
   };
 
   const saveRecord = async () => {
     const values = await form.validateFields();
-    if (editing?.id) {
-      setData((items) => items.map((item) => (item.id === editing.id ? { ...item, ...values } : item)));
-      message.success('已更新');
-    } else {
-      setData((items) => [{ ...createRecord(values), ...values }, ...items]);
-      message.success('已新增');
+    const payload = normalizePayload(values, resource, editing);
+    try {
+      if (editing?.[rowKey]) {
+        await api.update(resource.path, editing[rowKey], payload);
+        message.success('已更新');
+      } else {
+        await api.create(resource.path, payload);
+        message.success('已新增');
+      }
+      setEditing(null);
+      await loadLookups();
+      await loadData();
+    } catch (error) {
+      message.error(error.message || '保存失败');
     }
-    setEditing(null);
   };
 
   const deleteRecord = (record) => {
     Modal.confirm({
-      title: `确认删除 ${record.name || record.id}？`,
+      title: `确认删除 ${getRecordLabel(record)}？`,
       okText: '删除',
       cancelText: '取消',
       okButtonProps: { danger: true },
-      onOk: () => {
-        setData((items) => items.filter((item) => item.id !== record.id));
-        message.success('已删除');
+      onOk: async () => {
+        try {
+          await api.remove(resource.path, record[rowKey]);
+          message.success('已删除');
+          await loadData();
+        } catch (error) {
+          message.error(error.message || '删除失败');
+        }
       },
     });
   };
 
   const tableColumns = [
-    ...columns,
+    ...resource.fields.filter((field) => !field.hideInTable).map((field) => ({
+      title: field.label,
+      dataIndex: field.name,
+      width: field.width || 130,
+      sorter: ['number', 'date', 'datetime'].includes(field.type),
+      ellipsis: true,
+      render: (value) => renderDisplayValue(value, field, lookups),
+    })),
     {
       title: '',
+      fixed: 'right',
       width: 168,
       render: (_, record) => (
         <Space size={6} className="row-actions">
@@ -535,416 +573,200 @@ function DataListPage({
     },
   ];
 
+  const filterableFields = resource.fields.filter((field) => !field.readOnly && ['text', 'select', 'foreign', 'boolean', undefined].includes(field.type));
+
+  const handleTableChange = (_, __, sorter) => {
+    const field = sorter?.field;
+    if (!field || !sorter.order) {
+      setOrdering('');
+      return;
+    }
+    setOrdering(`${sorter.order === 'descend' ? '-' : ''}${field}`);
+  };
+
   return (
     <section className="list-page">
       <div className="list-page-head">
-        <h1>{title}</h1>
-        <Button className="btn btn-primary action-primary" icon={<PlusOutlined />} onClick={openCreate}>
-          {createLabel}
+        <div>
+          <h1>{resource.label}</h1>
+          <p>{resource.note}</p>
+        </div>
+        <Button className="btn btn-primary action-primary" type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+          新增
         </Button>
       </div>
-
       <div className="notice-bar">
         <BulbOutlined />
-        <span className="notice-copy">{notice}</span>
-        <a>开始检查</a>
-        <strong><ClockCircleOutlined /> 5 分钟</strong>
-        <button type="button"><CloseOutlined /></button>
+        <span className="notice-copy">当前页面已接入 {resource.path}，支持搜索、筛选、排序和 CRUD。</span>
+        <a onClick={loadData}>立即同步</a>
+        <strong><ClockCircleOutlined /> 实时</strong>
       </div>
-
-      <div className="segment-row">
-        {segments.map((item) => (
-          <button
-            type="button"
-            key={item.key}
-            className={`segment-tab ${activeSegment === item.key ? 'active' : ''}`}
-            onClick={() => setActiveSegment(item.key)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
       <div className="list-tools">
         <div className="chip-row">
-          {filterOptions.map((item) => (
-            <button
-              type="button"
-              className={`filter-chip ${fieldFilters[item.key] ? 'active' : ''}`}
-              key={item.key}
-              onClick={() => openFilter(item)}
-            >
-              <PlusOutlined /> {item.label}
-            </button>
-          ))}
-          <button type="button" className="filter-chip" onClick={() => openFilter(null, 'advanced')}>
-            <FilterOutlined /> 更多筛选
-          </button>
           <Input
             className="inline-search"
-            placeholder={`查询${title}`}
+            prefix={<SearchOutlined />}
+            placeholder={`查询${resource.label}`}
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
             allowClear
           />
+          {filterableFields.slice(0, 5).map((field) => (
+            <FilterControl
+              key={field.name}
+              field={field}
+              value={filters[field.name]}
+              lookups={lookups}
+              onChange={(value) => setFilters((current) => ({ ...current, [field.name]: value === '' ? undefined : value }))}
+            />
+          ))}
         </div>
         <div className="table-tool-row">
-          <button type="button" className="tool-button"><CopyOutlined />复制</button>
-          <button type="button" className="tool-button"><ExportOutlined />导出</button>
+          <button type="button" className="tool-button" onClick={loadData}><ReloadOutlined />刷新</button>
+          <button type="button" className="tool-button" onClick={() => setFilters({})}><CloseOutlined />清除筛选</button>
           <button type="button" className="tool-button"><BarChartOutlined />分析</button>
-          <button type="button" className="tool-button"><SettingOutlined />编辑列</button>
+          <button type="button" className="tool-button"><SettingOutlined />列设置</button>
         </div>
       </div>
-
-      {activeFilterEntries.length > 0 ? (
-        <div className="active-filter-row">
-          {activeFilterEntries.map((chip) => (
-            <button type="button" className="active-filter-pill" key={chip.key} onClick={() => openFilter(chip)}>
-              {chip.label}: {getFilterValueLabel(chip, fieldFilters[chip.key])}
-              <CloseOutlined onClick={(event) => {
-                event.stopPropagation();
-                clearFilter(chip.key);
-              }} />
-            </button>
-          ))}
-          <button type="button" className="clear-filter-button" onClick={clearAllFilters}>清除筛选</button>
-        </div>
-      ) : null}
-
       <div className="stripe-table-wrap">
         <Table
           className="stripe-data-table"
-          rowKey="id"
-          rowSelection={{ columnWidth: 44 }}
-          pagination={false}
-          dataSource={filteredData}
+          rowKey={rowKey}
+          loading={loading}
+          dataSource={data}
           columns={tableColumns}
+          onChange={handleTableChange}
+          scroll={{ x: 'max-content' }}
+          pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
         />
       </div>
-      <div className="item-count">{filteredData.length} 项</div>
+      <div className="item-count">{data.length} 项</div>
 
       <Modal
-        title={editing?.id ? `编辑${title}` : createLabel}
+        title={editing?.[rowKey] ? `编辑${resource.label}` : `新增${resource.label}`}
         open={!!editing}
         okText="保存"
         cancelText="取消"
         onOk={saveRecord}
         onCancel={() => setEditing(null)}
-        destroyOnHidden
-        forceRender
+        width={720}
+        destroyOnClose
       >
-        <Form form={form} layout="vertical">
-          {fields.map((field) => (
-            <Form.Item key={field.name} label={field.label} name={field.name} rules={field.rules}>
-              {field.render ? field.render() : <Input placeholder={`请输入${field.label}`} />}
+        <Form form={form} layout="vertical" className="resource-form">
+          {resource.fields.filter((field) => isWritableField(field, editing)).map((field) => (
+            <Form.Item
+              key={field.name}
+              label={field.label}
+              name={field.name}
+              valuePropName={field.type === 'boolean' ? 'checked' : 'value'}
+              rules={[{ required: field.required && !(field.type === 'password' && editing?.[rowKey]), message: `请填写${field.label}` }]}
+            >
+              {renderFormControl(field, lookups)}
             </Form.Item>
           ))}
         </Form>
       </Modal>
 
-      <Modal title={`${title}详情`} open={!!viewing} footer={null} onCancel={() => setViewing(null)}>
+      <Modal title={`${resource.label}详情`} open={!!viewing} footer={null} onCancel={() => setViewing(null)} width={760}>
         <div className="detail-list">
-          {viewing && Object.entries(viewing).map(([key, value]) => (
-            <div className="detail-row" key={key}>
-              <span>{key}</span>
-              <strong>{String(value)}</strong>
+          {viewing && resource.fields.map((field) => (
+            <div className="detail-row" key={field.name}>
+              <span>{field.label}</span>
+              <strong>{renderDisplayValue(viewing[field.name], field, lookups)}</strong>
             </div>
           ))}
         </div>
       </Modal>
-
-      <Modal
-        title={`筛选${title}`}
-        open={!!filterModal}
-        okText="应用筛选"
-        cancelText="取消"
-        onOk={applyFilter}
-        onCancel={() => setFilterModal(null)}
-        destroyOnHidden
-      >
-        <Form form={filterForm} layout="vertical">
-          {filterModal?.mode === 'advanced' ? (
-            <Form.Item label="筛选字段" name="fieldKey" rules={[{ required: true, message: '请选择筛选字段' }]}>
-              <Select
-                options={filterOptions.map((chip) => ({ label: chip.label, value: chip.key }))}
-                onChange={changeAdvancedFilterField}
-              />
-            </Form.Item>
-          ) : null}
-          <Form.Item label={filterModal?.chip?.label || '筛选值'} name="value">
-            {renderFilterControl(filterModal?.chip)}
-          </Form.Item>
-        </Form>
-      </Modal>
     </section>
   );
 }
 
-function ProductPage({ products, setProducts }) {
-  return (
-    <DataListPage
-      title="商品库存"
-      createLabel="新增商品"
-      data={products}
-      setData={setProducts}
-      createRecord={() => ({ id: Date.now(), createdAt: '2026-06-03' })}
-      columns={productColumns}
-      segments={[
-        { key: 'all', label: '全部', filter: () => true },
-        { key: 'normal', label: '库存正常', filter: (item) => item.status === '库存正常' },
-        { key: 'low', label: '库存偏低', filter: (item) => item.status === '库存偏低' },
-        { key: 'empty', label: '缺货', filter: (item) => item.status === '缺货' },
-        { key: 'focus', label: '重点 SKU', filter: (item) => Number(item.stock) <= 20 },
-      ]}
-      filterChips={[
-        { key: 'sku', label: 'SKU', dataIndex: 'sku' },
-        { key: 'name', label: '商品名称', dataIndex: 'name' },
-        {
-          key: 'warehouse',
-          label: '仓库',
-          dataIndex: 'warehouse',
-          type: 'select',
-          options: [
-            { label: '广州仓', value: '广州仓' },
-            { label: '深圳仓', value: '深圳仓' },
-            { label: '义乌仓', value: '义乌仓' },
-          ],
-        },
-        {
-          key: 'status',
-          label: '状态',
-          dataIndex: 'status',
-          type: 'select',
-          options: [
-            { label: '库存正常', value: '库存正常' },
-            { label: '库存偏低', value: '库存偏低' },
-            { label: '缺货', value: '缺货' },
-          ],
-        },
-      ]}
-      notice="当前库存列表已加载外贸通样例数据，低库存与缺货条目已进入预警范围。"
-      fields={[
-        { label: '商品名称', name: 'name', rules: [{ required: true, message: '请输入商品名称' }] },
-        { label: 'SKU', name: 'sku', rules: [{ required: true, message: '请输入 SKU' }] },
-        { label: '分类', name: 'category', rules: [{ required: true, message: '请输入分类' }] },
-        { label: '仓库', name: 'warehouse', rules: [{ required: true, message: '请输入仓库' }] },
-        { label: '库存', name: 'stock', rules: [{ required: true, message: '请输入库存' }] },
-        {
-          label: '状态',
-          name: 'status',
-          rules: [{ required: true, message: '请选择状态' }],
-          render: () => (
-            <Select
-              options={[
-                { label: '库存正常', value: '库存正常' },
-                { label: '库存偏低', value: '库存偏低' },
-                { label: '缺货', value: '缺货' },
-              ]}
-            />
-          ),
-        },
-      ]}
-    />
-  );
-}
-
-function UserPage({ users, setUsers }) {
-  return (
-    <DataListPage
-      title="用户管理"
-      createLabel="新增用户"
-      data={users}
-      setData={setUsers}
-      createRecord={() => ({ id: Date.now(), createdAt: '2026-06-03', lastLogin: '-' })}
-      columns={[
-        {
-          title: '用户',
-          dataIndex: 'name',
-          width: 136,
-          render: (value) => <span className="item-name">{value}</span>,
-        },
-        { title: '邮箱地址', dataIndex: 'email', width: 190 },
-        { title: '角色', dataIndex: 'role', width: 88 },
-        {
-          title: '状态',
-          dataIndex: 'status',
-          width: 86,
-          render: (value) => <StatusBadge value={value} />,
-        },
-        { title: '创建时间', dataIndex: 'createdAt', width: 150 },
-        { title: '最后登录', dataIndex: 'lastLogin', width: 150 },
-      ]}
-      segments={[
-        { key: 'all', label: '全部', filter: () => true },
-        { key: 'admin', label: '管理员', filter: (item) => item.role === '管理员' },
-        { key: 'ops', label: '运营', filter: (item) => item.role === '运营' },
-        { key: 'finance', label: '财务', filter: (item) => item.role === '财务' },
-        { key: 'disabled', label: '已停用', filter: (item) => item.status === '停用' },
-      ]}
-      filterChips={[
-        { key: 'email', label: '邮箱地址', dataIndex: 'email' },
-        { key: 'name', label: '名称', dataIndex: 'name' },
-        {
-          key: 'role',
-          label: '角色',
-          dataIndex: 'role',
-          type: 'select',
-          options: [
-            { label: '管理员', value: '管理员' },
-            { label: '运营', value: '运营' },
-            { label: '财务', value: '财务' },
-          ],
-        },
-        { key: 'createdAt', label: '创建日期', dataIndex: 'createdAt' },
-      ]}
-      notice="用户数据用于登录认证、角色权限和后台操作留痕。"
-      fields={[
-        { label: '姓名', name: 'name', rules: [{ required: true, message: '请输入姓名' }] },
-        { label: '邮箱', name: 'email', rules: [{ required: true, message: '请输入邮箱' }] },
-        {
-          label: '角色',
-          name: 'role',
-          rules: [{ required: true, message: '请选择角色' }],
-          render: () => (
-            <Select
-              options={[
-                { label: '管理员', value: '管理员' },
-                { label: '运营', value: '运营' },
-                { label: '财务', value: '财务' },
-              ]}
-            />
-          ),
-        },
-        {
-          label: '状态',
-          name: 'status',
-          rules: [{ required: true, message: '请选择状态' }],
-          render: () => (
-            <Select
-              options={[
-                { label: '启用', value: '启用' },
-                { label: '停用', value: '停用' },
-              ]}
-            />
-          ),
-        },
-      ]}
-    />
-  );
-}
-
-function ReportPage({ reports, setReports }) {
-  return (
-    <section className="report-page">
-      <div className="report-range">
-        <RangePicker />
-      </div>
-      <DataListPage
-        title="报表查询"
-        createLabel="新增报表"
-        data={reports}
-        setData={setReports}
-        createRecord={() => ({ id: `R-${Date.now()}` })}
-        columns={[
-          { title: '报表编号', dataIndex: 'id', width: 170 },
-          { title: '类型', dataIndex: 'type', width: 130 },
-          { title: '负责人', dataIndex: 'owner', width: 120 },
-          { title: '周期', dataIndex: 'cycle', width: 90 },
-          { title: '统计值', dataIndex: 'amount', width: 120, sorter: (a, b) => Number(a.amount) - Number(b.amount) },
-          {
-            title: '状态',
-            dataIndex: 'status',
-            width: 110,
-            render: (value) => <StatusBadge value={value} />,
-          },
-          { title: '创建日期', dataIndex: 'createdAt', width: 130 },
-        ]}
-        segments={[
-          { key: 'all', label: '全部', filter: () => true },
-          { key: 'sales', label: '销售日报', filter: (item) => item.type === '销售日报' },
-          { key: 'stock', label: '库存预警', filter: (item) => item.type === '库存预警' },
-          { key: 'finance', label: '财务汇总', filter: (item) => item.type === '财务汇总' },
-          { key: 'review', label: '待复核', filter: (item) => item.status === '待复核' },
-        ]}
-        filterChips={[
-          { key: 'id', label: '报表编号', dataIndex: 'id' },
-          {
-            key: 'type',
-            label: '类型',
-            dataIndex: 'type',
-            type: 'select',
-            options: [
-              { label: '销售日报', value: '销售日报' },
-              { label: '库存预警', value: '库存预警' },
-              { label: '财务汇总', value: '财务汇总' },
-            ],
-          },
-          { key: 'owner', label: '负责人', dataIndex: 'owner' },
-          { key: 'createdAt', label: '创建日期', dataIndex: 'createdAt' },
-        ]}
-        notice="报表查询模型覆盖销售、库存和财务汇总，便于答辩展示查询与统计能力。"
-        fields={[
-          { label: '报表类型', name: 'type', rules: [{ required: true, message: '请输入报表类型' }] },
-          { label: '负责人', name: 'owner', rules: [{ required: true, message: '请输入负责人' }] },
-          { label: '周期', name: 'cycle', rules: [{ required: true, message: '请输入周期' }] },
-          { label: '统计值', name: 'amount', rules: [{ required: true, message: '请输入统计值' }] },
-          {
-            label: '状态',
-            name: 'status',
-            rules: [{ required: true, message: '请选择状态' }],
-            render: () => (
-              <Select
-                options={[
-                  { label: '已生成', value: '已生成' },
-                  { label: '待复核', value: '待复核' },
-                ]}
-              />
-            ),
-          },
-          { label: '日期', name: 'createdAt', rules: [{ required: true, message: '请输入日期' }] },
-        ]}
+function FilterControl({ field, value, lookups, onChange }) {
+  const commonProps = {
+    className: 'filter-control',
+    size: 'small',
+    allowClear: true,
+    placeholder: field.label,
+    value,
+    onChange,
+  };
+  if (field.type === 'select') return <Select {...commonProps} options={field.options} />;
+  if (field.type === 'boolean') return <Select {...commonProps} options={[{ label: '是', value: true }, { label: '否', value: false }]} />;
+  if (field.type === 'foreign') {
+    const related = resourceMap[field.resource];
+    const relatedKey = related ? getRowKey(related) : 'id';
+    return (
+      <Select
+        {...commonProps}
+        showSearch
+        optionFilterProp="label"
+        options={(lookups[field.resource]?.items || []).map((item) => ({ label: getRecordLabel(item), value: item[relatedKey] }))}
       />
-    </section>
+    );
+  }
+  return <Input className="filter-control" size="small" allowClear placeholder={field.label} value={value} onChange={(event) => onChange(event.target.value)} />;
+}
+
+function ConsoleApp() {
+  const { message } = AntApp.useApp();
+  const [session, setSession] = useState(auth.getSession());
+  const [activeKey, setActiveKey] = useState('home');
+  const [globalKeyword, setGlobalKeyword] = useState('');
+  const [refreshSignal, setRefreshSignal] = useState(0);
+
+  useEffect(() => {
+    const handler = (event) => setSession(event.detail);
+    window.addEventListener('session-change', handler);
+    return () => window.removeEventListener('session-change', handler);
+  }, []);
+
+  const logout = async () => {
+    try {
+      await auth.logout();
+      message.success('已退出登录');
+    } catch (error) {
+      message.error(error.message || '退出失败');
+    }
+  };
+
+  if (!session?.access) {
+    return <LoginPage onLogin={setSession} />;
+  }
+
+  const activeResource = resourceMap[activeKey];
+
+  return (
+    <div className="console-shell">
+      <Sidebar activeKey={activeKey} onChange={(key) => {
+        setActiveKey(key);
+        setGlobalKeyword('');
+      }} />
+      <Topbar
+        keyword={globalKeyword}
+        onKeywordChange={setGlobalKeyword}
+        onRefresh={() => setRefreshSignal((value) => value + 1)}
+        user={session.user}
+        onLogout={logout}
+      />
+      <main className="console-main">
+        <div className="content-column">
+          {activeKey === 'home'
+            ? <DashboardHome onOpen={setActiveKey} />
+            : <ResourcePage resource={activeResource} globalKeyword={globalKeyword} refreshSignal={refreshSignal} />}
+        </div>
+      </main>
+      <div className="developer-bar">
+        <span>开发人员</span>
+        <span>外贸通 · 陈炀嘉 · 邝文濠 · 苏秉铂</span>
+      </div>
+    </div>
   );
 }
 
 export default function RootApp() {
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [activeSection, setActiveSection] = useState('home');
-  const [users, setUsers] = useState(initialUsers);
-  const [products, setProducts] = useState(initialProducts);
-  const [reports, setReports] = useState(initialReports);
-
-  if (!loggedIn) {
-    return (
-      <App>
-        <LoginPage onLogin={() => setLoggedIn(true)} />
-      </App>
-    );
-  }
-
-  const pages = {
-    home: <DashboardHome products={products} />,
-    products: <ProductPage products={products} setProducts={setProducts} />,
-    users: <UserPage users={users} setUsers={setUsers} />,
-    reports: <ReportPage reports={reports} setReports={setReports} />,
-  };
-
   return (
-    <App>
-      <div className="console-shell">
-        <Sidebar activeKey={activeSection} onChange={setActiveSection} />
-        <Topbar />
-        <main className="console-main">
-          <div className="content-column">
-            {pages[activeSection]}
-          </div>
-        </main>
-        <div className="developer-bar">
-          <span>开发人员</span>
-          <span>外贸通 · 陈炜嘉 · 邝文涛 · 苏秉铂</span>
-        </div>
-      </div>
-    </App>
+    <AntApp>
+      <ConsoleApp />
+    </AntApp>
   );
 }

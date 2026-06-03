@@ -116,10 +116,15 @@ a {
   align-items: center;
   gap: 10px;
   height: 28px;
+  width: 100%;
   margin-bottom: 24px;
+  border: 0;
+  background: transparent;
   color: var(--stripe-slate);
   font-size: 13px;
   font-weight: 650;
+  text-align: left;
+  cursor: pointer;
 }
 
 .workspace-caret {
@@ -225,6 +230,12 @@ a {
   font-size: 13px;
 }
 
+.search-box .ant-input {
+  padding: 0;
+  background: transparent;
+  font-size: 13px;
+}
+
 .topbar-actions {
   margin-left: auto;
   display: flex;
@@ -237,6 +248,25 @@ a {
 .topbar-actions .accent-icon {
   color: var(--stripe-blurple);
   font-size: 17px;
+}
+
+.topbar-actions svg {
+  cursor: pointer;
+}
+
+.topbar-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--stripe-slate);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
 }
 
 .console-main {
@@ -574,6 +604,12 @@ a {
   letter-spacing: 0;
 }
 
+.list-page-head p {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
 .action-primary {
   min-width: 112px;
   height: 34px !important;
@@ -707,6 +743,11 @@ a {
 
 .inline-search .ant-input {
   font-size: 12px;
+}
+
+.filter-control {
+  width: 150px;
+  min-width: 128px;
 }
 
 .table-tool-row {
@@ -949,6 +990,17 @@ a {
   color: var(--stripe-slate);
   font-weight: 650;
   text-align: right;
+}
+
+.resource-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 18px;
+}
+
+.resource-form .ant-form-item:has(textarea),
+.resource-form .ant-form-item:has(.ant-select-multiple) {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 1100px) {
