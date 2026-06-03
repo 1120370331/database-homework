@@ -9,8 +9,29 @@ from .serializers import (
     LoginSerializer,
     LogoutSerializer,
     PermissionGroupSerializer,
+    RegisterSerializer,
     UserSerializer,
 )
+
+
+class IsSystemAdmin(permissions.BasePermission):
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and (user.is_superuser or user.is_staff or user.role == User.Role.ADMIN)
+        )
+
+
+class RegisterView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = RegisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
 class LoginView(APIView):
@@ -42,6 +63,7 @@ class LogoutView(APIView):
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.prefetch_related("permission_groups").order_by("id")
     serializer_class = UserSerializer
+    permission_classes = [IsSystemAdmin]
 
     @action(detail=False, methods=["get"], url_path="me")
     def current_user(self, request):
@@ -51,3 +73,4 @@ class UserViewSet(viewsets.ModelViewSet):
 class PermissionGroupViewSet(viewsets.ModelViewSet):
     queryset = PermissionGroup.objects.all()
     serializer_class = PermissionGroupSerializer
+    permission_classes = [IsSystemAdmin]

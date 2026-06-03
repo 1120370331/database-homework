@@ -47,6 +47,22 @@ class User(AbstractUser):
     def is_enabled(self):
         return self.is_active and self.status == self.Status.ACTIVE
 
+    def get_permission_codes(self):
+        if self.is_superuser:
+            return ["*"]
+
+        permissions = set(super().get_all_permissions())
+        active_groups = self.permission_groups.filter(is_active=True)
+        for group in active_groups:
+            if isinstance(group.permissions, list):
+                permissions.update(str(code) for code in group.permissions if code)
+        return sorted(permissions)
+
+    def has_permission(self, permission_code):
+        if self.is_superuser:
+            return True
+        return permission_code in self.get_permission_codes()
+
 
 class PermissionGroup(models.Model):
     code = models.CharField("编码", max_length=64, unique=True)

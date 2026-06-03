@@ -1,4 +1,5 @@
 from django.contrib.auth import authenticate
+from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -24,6 +25,7 @@ class PermissionGroupSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=False)
+    permissions = serializers.SerializerMethodField()
     permission_groups_detail = PermissionGroupSerializer(
         source="permission_groups", many=True, read_only=True
     )
@@ -46,13 +48,17 @@ class UserSerializer(serializers.ModelSerializer):
             "date_joined",
             "created_at",
             "updated_at",
+            "permissions",
             "permission_groups",
             "permission_groups_detail",
         ]
-        read_only_fields = ["id", "date_joined", "created_at", "updated_at"]
+        read_only_fields = ["id", "date_joined", "created_at", "updated_at", "permissions"]
         extra_kwargs = {
             "permission_groups": {"required": False},
         }
+
+    def get_permissions(self, obj):
+        return obj.get_permission_codes()
 
     def create(self, validated_data):
         password = validated_data.pop("password", None)
@@ -79,6 +85,26 @@ class UserSerializer(serializers.ModelSerializer):
         return instance
 
 
+class RegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, min_length=8)
+
+    class Meta:
+        model = User
+        fields = ["id", "username", "password", "email", "first_name", "last_name", "phone"]
+        read_only_fields = ["id"]
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
+    def create(self, validated_data):
+        password = validated_data.pop("password")
+        user = User(**validated_data)
+        user.set_password(password)
+        user.save()
+        return user
+
+
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
@@ -102,6 +128,9 @@ class LoginSerializer(serializers.Serializer):
             "refresh": str(refresh),
             "access": str(refresh.access_token),
             "user": UserSerializer(user).data,
+            "permissions": user.get_permission_codes(),
+            "role": user.role,
+            "data_scope": user.data_scope,
         }
 
     def _write_audit(self, username, result, message, user=None):
