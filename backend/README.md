@@ -36,16 +36,16 @@ python manage.py runserver
 ## Django 数据模型
 
 - `User`：自定义用户，包含角色、数据范围、账号状态、手机号和权限组。
-- `PermissionGroup`：权限组，维护权限标识列表和默认数据范围。
+- `PermissionCode / PermissionGroup`：权限码和权限组，通过多对多关系维护权限集合。
 - `LoginAuditLog`：登录、失败登录和登出审计日志。
 - `SalesPlatform / OperationTeam / Shop / ShopAssignment`：店铺平台和运营分工。
 - `Customer`：客户资料。
-- `Product / ProductVariant`：商品和 SKU。
+- `Product / ProductVariant / ProductAttributeDefinition / ProductAttributeValue`：商品、SKU 和规范化扩展属性。
 - `Warehouse`：仓库。
 - `Supplier / PurchaseOrder / PurchaseOrderLine`：供应商和采购订单。
 - `InventoryDocument / InventoryDocumentLine / InventoryLedger / InventoryBalance`：库存单据、库存流水和当前库存余额。
 - `SalesDocument / SalesDocumentLine / SalesLedgerEntry`：销售单据、销售明细和销售流水。
-- `MetricDefinition / ReportQueryModel / ReportQueryField / ReportQuerySnapshot`：报表指标、查询模型和查询快照。
+- `MetricDefinition / ReportQueryModel / ReportQueryParameter / ReportQueryField`：报表指标、查询模型、查询参数和查询字段。
 
 课程报告仍保留 SQL Server 建表代码用于文档提交；后端实现以 Django ORM 模型和 migration 为准。
 
@@ -69,12 +69,15 @@ python manage.py seed_demo_data
 - `GET /api/auth/users/{id}/`：查询单个用户。
 - `PUT/PATCH /api/auth/users/{id}/`：更新用户。
 - `DELETE /api/auth/users/{id}/`：删除用户。
+- `GET/POST /api/auth/permission-codes/`：权限码 CRUD。
 - `GET /api/auth/permission-groups/`：查询权限组列表。
 - `POST /api/auth/permission-groups/`：创建权限组。
 - `GET /api/auth/permission-groups/{id}/`：查询单个权限组。
 - `PUT/PATCH /api/auth/permission-groups/{id}/`：更新权限组。
 - `DELETE /api/auth/permission-groups/{id}/`：删除权限组。
 - `GET/POST /api/operations/products/`：商品 CRUD。
+- `GET/POST /api/operations/product-attribute-definitions/`：商品扩展属性定义 CRUD。
+- `GET/POST /api/operations/product-attribute-values/`：商品扩展属性值 CRUD。
 - `GET/POST /api/operations/product-variants/`：SKU CRUD。
 - `GET/POST /api/operations/warehouses/`：仓库 CRUD。
 - `GET/POST /api/operations/customers/`：客户 CRUD。
@@ -83,6 +86,7 @@ python manage.py seed_demo_data
 - `GET/POST /api/operations/inventory-balances/`：当前库存查询。
 - `GET/POST /api/operations/sales-documents/`：销售单据 CRUD。
 - `GET/POST /api/operations/report-query-models/`：报表查询模型 CRUD。
+- `GET/POST /api/operations/report-query-parameters/`：报表查询参数 CRUD。
 
 业务 CRUD 列表接口支持基础查询参数：
 

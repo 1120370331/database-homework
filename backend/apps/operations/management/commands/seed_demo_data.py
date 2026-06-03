@@ -81,7 +81,6 @@ class Command(BaseCommand):
                 "category": "服装",
                 "color": "蓝色",
                 "safety_stock": 20,
-                "custom_fields": {"style": "dress"},
             },
         )
         shoes, _ = models.Product.objects.update_or_create(
@@ -96,8 +95,21 @@ class Command(BaseCommand):
                 "category": "鞋履",
                 "color": "白色",
                 "safety_stock": 30,
-                "custom_fields": {"style": "shoes"},
             },
+        )
+        style_attr, _ = models.ProductAttributeDefinition.objects.update_or_create(
+            code="style",
+            defaults={"name": "商品风格", "data_type": "string", "is_active": True},
+        )
+        models.ProductAttributeValue.objects.update_or_create(
+            product=dress,
+            attribute=style_attr,
+            defaults={"value_text": "dress"},
+        )
+        models.ProductAttributeValue.objects.update_or_create(
+            product=shoes,
+            attribute=style_attr,
+            defaults={"value_text": "shoes"},
         )
         dress_variant, _ = models.ProductVariant.objects.update_or_create(
             product=dress,
@@ -153,7 +165,6 @@ class Command(BaseCommand):
                 "received_quantity": Decimal("0.0000"),
                 "unit_price": Decimal("120.00"),
                 "amount": Decimal("6000.00"),
-                "metadata": {"reason": "low_stock_replenishment"},
             },
         )
 
@@ -180,7 +191,6 @@ class Command(BaseCommand):
                 "warehouse": gz_warehouse,
                 "delta_quantity": -14,
                 "unit_cost": Decimal("68.00"),
-                "metadata": {"source": "sales"},
             },
         )
         inventory_event, _ = models.InventoryLedger.objects.update_or_create(
@@ -192,7 +202,6 @@ class Command(BaseCommand):
                 "variant": dress_variant,
                 "warehouse": gz_warehouse,
                 "delta_quantity": -14,
-                "snapshot_quantity": 86,
                 "biz_time": now,
                 "source_type": "sales",
                 "source_ref": "SO-20260603-001",
@@ -213,7 +222,6 @@ class Command(BaseCommand):
                 "status": "posted",
                 "shop": shop,
                 "customer": customer,
-                "customer_name_snapshot": customer.name,
                 "transaction_time": now,
                 "source_system": "manual",
                 "source_record_key": "SO-DEMO-001",
@@ -228,8 +236,6 @@ class Command(BaseCommand):
             defaults={
                 "product": dress,
                 "variant": dress_variant,
-                "product_code_snapshot": dress.code,
-                "sku_key_snapshot": dress_variant.sku_code or "",
                 "quantity": Decimal("14.0000"),
                 "unit_price": Decimal("168.00"),
                 "amount": Decimal("2352.00"),
@@ -274,8 +280,18 @@ class Command(BaseCommand):
                 "default_grain": "shop_day",
                 "permission_code": "report.read",
                 "cache_policy": "snapshot",
-                "default_params": {"date_range": "last_7_days"},
                 "created_by": admin,
+            },
+        )
+        models.ReportQueryParameter.objects.update_or_create(
+            query_model=query_model,
+            param_key="date_range",
+            defaults={
+                "param_label": "日期范围",
+                "data_type": "date_range",
+                "default_value": "last_7_days",
+                "is_required": True,
+                "sort_order": 1,
             },
         )
         models.ReportQueryField.objects.update_or_create(
@@ -288,19 +304,6 @@ class Command(BaseCommand):
                 "data_type": "decimal",
                 "expression_text": "SUM(amount)",
                 "sort_order": 10,
-            },
-        )
-        models.ReportQuerySnapshot.objects.update_or_create(
-            id=1,
-            defaults={
-                "query_model": query_model,
-                "query_params": {"date": "2026-06-03", "shop_id": shop.id},
-                "result": [{"shop": shop.name, "sales_amount": "2352.00"}],
-                "metric_versions": [{"metric": "sales_amount", "version": "v1"}],
-                "source_trace": {"source": ["sales_ledger_entry"]},
-                "data_mode": "realtime",
-                "snapshot_time": now,
-                "created_by": admin,
             },
         )
 

@@ -123,7 +123,6 @@ class Product(TimeStampedModel):
     color = models.CharField("颜色", max_length=100, blank=True)
     safety_stock = models.IntegerField("安全库存", null=True, blank=True)
     status = models.CharField("状态", max_length=20, choices=Status.choices, default=Status.ACTIVE)
-    custom_fields = models.JSONField("自定义字段", default=dict, blank=True)
     remark = models.TextField("备注", blank=True)
 
     class Meta:
@@ -133,6 +132,34 @@ class Product(TimeStampedModel):
 
     def __str__(self):
         return f"{self.code} {self.name}"
+
+
+class ProductAttributeDefinition(TimeStampedModel):
+    code = models.CharField("属性编码", max_length=100, unique=True)
+    name = models.CharField("属性名称", max_length=120)
+    data_type = models.CharField("数据类型", max_length=30, default="string")
+    is_active = models.BooleanField("是否启用", default=True)
+
+    class Meta:
+        verbose_name = "商品扩展属性定义"
+        verbose_name_plural = "商品扩展属性定义"
+        ordering = ["code"]
+
+    def __str__(self):
+        return self.name
+
+
+class ProductAttributeValue(models.Model):
+    product = models.ForeignKey(Product, verbose_name="商品", on_delete=models.CASCADE, related_name="attribute_values")
+    attribute = models.ForeignKey(ProductAttributeDefinition, verbose_name="属性", on_delete=models.CASCADE)
+    value_text = models.CharField("属性值", max_length=255)
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "商品扩展属性值"
+        verbose_name_plural = "商品扩展属性值"
+        unique_together = [("product", "attribute")]
+        ordering = ["product_id", "attribute_id"]
 
 
 class ProductVariant(TimeStampedModel):
@@ -234,7 +261,6 @@ class PurchaseOrderLine(models.Model):
     received_quantity = models.DecimalField("已收数量", max_digits=18, decimal_places=4, default=0)
     unit_price = models.DecimalField("采购单价", max_digits=18, decimal_places=2, default=0)
     amount = models.DecimalField("金额", max_digits=18, decimal_places=2, default=0)
-    metadata = models.JSONField("扩展信息", default=dict, blank=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
 
     class Meta:
@@ -287,7 +313,6 @@ class InventoryDocumentLine(models.Model):
     delta_quantity = models.BigIntegerField("变动数量", default=0)
     target_quantity = models.BigIntegerField("目标数量", null=True, blank=True)
     unit_cost = models.DecimalField("单位成本", max_digits=18, decimal_places=2, null=True, blank=True)
-    metadata = models.JSONField("扩展信息", default=dict, blank=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
 
     class Meta:
@@ -305,12 +330,10 @@ class InventoryLedger(models.Model):
     variant = models.ForeignKey(ProductVariant, verbose_name="SKU", null=True, blank=True, on_delete=models.PROTECT)
     warehouse = models.ForeignKey(Warehouse, verbose_name="仓库", on_delete=models.PROTECT)
     delta_quantity = models.BigIntegerField("变动数量", default=0)
-    snapshot_quantity = models.BigIntegerField("变动后数量", null=True, blank=True)
     biz_time = models.DateTimeField("业务时间")
     source_type = models.CharField("来源类型", max_length=64, blank=True)
     source_ref = models.CharField("来源单号", max_length=128, blank=True)
     idempotency_key = models.CharField("幂等键", max_length=128, unique=True)
-    metadata = models.JSONField("扩展信息", default=dict, blank=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
 
     class Meta:
@@ -344,7 +367,6 @@ class SalesDocument(TimeStampedModel):
     status = models.CharField("状态", max_length=20, choices=Status.choices, default=Status.DRAFT)
     shop = models.ForeignKey(Shop, verbose_name="店铺", null=True, blank=True, on_delete=models.SET_NULL)
     customer = models.ForeignKey(Customer, verbose_name="客户", null=True, blank=True, on_delete=models.SET_NULL)
-    customer_name_snapshot = models.CharField("客户快照", max_length=255, blank=True)
     transaction_time = models.DateTimeField("交易时间", null=True, blank=True)
     source_system = models.CharField("来源系统", max_length=80, blank=True)
     source_record_key = models.CharField("来源记录", max_length=255, blank=True)
@@ -367,12 +389,9 @@ class SalesDocumentLine(models.Model):
     line_no = models.PositiveIntegerField("行号")
     product = models.ForeignKey(Product, verbose_name="商品", on_delete=models.PROTECT)
     variant = models.ForeignKey(ProductVariant, verbose_name="SKU", null=True, blank=True, on_delete=models.PROTECT)
-    product_code_snapshot = models.CharField("货号快照", max_length=100)
-    sku_key_snapshot = models.CharField("SKU 快照", max_length=160, blank=True)
     quantity = models.DecimalField("数量", max_digits=18, decimal_places=4, default=0)
     unit_price = models.DecimalField("单价", max_digits=18, decimal_places=2, default=0)
     amount = models.DecimalField("金额", max_digits=18, decimal_places=2, default=0)
-    metadata = models.JSONField("扩展信息", default=dict, blank=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
 
     class Meta:
@@ -428,7 +447,6 @@ class ReportQueryModel(TimeStampedModel):
     default_grain = models.CharField("默认粒度", max_length=100)
     permission_code = models.CharField("权限编码", max_length=100, blank=True)
     cache_policy = models.CharField("缓存策略", max_length=30, default="none")
-    default_params = models.JSONField("默认参数", default=dict, blank=True)
     is_active = models.BooleanField("是否启用", default=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="创建人", null=True, blank=True, on_delete=models.SET_NULL)
 
@@ -439,6 +457,22 @@ class ReportQueryModel(TimeStampedModel):
 
     def __str__(self):
         return self.query_name
+
+
+class ReportQueryParameter(models.Model):
+    query_model = models.ForeignKey(ReportQueryModel, verbose_name="查询模型", on_delete=models.CASCADE, related_name="parameters")
+    param_key = models.CharField("参数键", max_length=100)
+    param_label = models.CharField("参数名", max_length=120)
+    data_type = models.CharField("数据类型", max_length=30, default="string")
+    default_value = models.CharField("默认值", max_length=255, blank=True)
+    is_required = models.BooleanField("是否必填", default=False)
+    sort_order = models.IntegerField("排序", default=0)
+
+    class Meta:
+        verbose_name = "报表查询参数"
+        verbose_name_plural = "报表查询参数"
+        unique_together = [("query_model", "param_key")]
+        ordering = ["query_model_id", "sort_order", "id"]
 
 
 class ReportQueryField(models.Model):
@@ -458,20 +492,3 @@ class ReportQueryField(models.Model):
         verbose_name_plural = "报表查询字段"
         unique_together = [("query_model", "field_key")]
         ordering = ["query_model_id", "sort_order", "id"]
-
-
-class ReportQuerySnapshot(models.Model):
-    query_model = models.ForeignKey(ReportQueryModel, verbose_name="查询模型", on_delete=models.CASCADE, related_name="snapshots")
-    query_params = models.JSONField("查询参数", default=dict, blank=True)
-    result = models.JSONField("结果", default=list, blank=True)
-    metric_versions = models.JSONField("指标版本", default=list, blank=True)
-    source_trace = models.JSONField("来源追踪", default=dict, blank=True)
-    data_mode = models.CharField("数据模式", max_length=30, default="realtime")
-    snapshot_time = models.DateTimeField("快照时间")
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="创建人", null=True, blank=True, on_delete=models.SET_NULL)
-    created_at = models.DateTimeField("创建时间", auto_now_add=True)
-
-    class Meta:
-        verbose_name = "报表查询快照"
-        verbose_name_plural = "报表查询快照"
-        ordering = ["-snapshot_time"]

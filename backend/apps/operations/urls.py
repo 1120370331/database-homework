@@ -11,6 +11,8 @@ router.register("shops", views.ShopViewSet, basename="shop")
 router.register("shop-assignments", views.ShopAssignmentViewSet, basename="shop-assignment")
 router.register("customers", views.CustomerViewSet, basename="customer")
 router.register("products", views.ProductViewSet, basename="product")
+router.register("product-attribute-definitions", views.ProductAttributeDefinitionViewSet, basename="product-attribute-definition")
+router.register("product-attribute-values", views.ProductAttributeValueViewSet, basename="product-attribute-value")
 router.register("product-variants", views.ProductVariantViewSet, basename="product-variant")
 router.register("warehouses", views.WarehouseViewSet, basename="warehouse")
 router.register("suppliers", views.SupplierViewSet, basename="supplier")
@@ -25,8 +27,8 @@ router.register("sales-document-lines", views.SalesDocumentLineViewSet, basename
 router.register("sales-ledgers", views.SalesLedgerEntryViewSet, basename="sales-ledger")
 router.register("metrics", views.MetricDefinitionViewSet, basename="metric")
 router.register("report-query-models", views.ReportQueryModelViewSet, basename="report-query-model")
+router.register("report-query-parameters", views.ReportQueryParameterViewSet, basename="report-query-parameter")
 router.register("report-query-fields", views.ReportQueryFieldViewSet, basename="report-query-field")
-router.register("report-query-snapshots", views.ReportQuerySnapshotViewSet, basename="report-query-snapshot")
 
 urlpatterns = [
     path("", include(router.urls)),

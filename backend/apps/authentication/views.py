@@ -4,10 +4,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from .models import PermissionGroup, User
+from .models import PermissionCode, PermissionGroup, User
 from .serializers import (
     LoginSerializer,
     LogoutSerializer,
+    PermissionCodeSerializer,
     PermissionGroupSerializer,
     RegisterSerializer,
     UserSerializer,
@@ -73,4 +74,10 @@ class UserViewSet(viewsets.ModelViewSet):
 class PermissionGroupViewSet(viewsets.ModelViewSet):
     queryset = PermissionGroup.objects.all()
     serializer_class = PermissionGroupSerializer
+    permission_classes = [IsSystemAdmin]
+
+
+class PermissionCodeViewSet(viewsets.ModelViewSet):
+    queryset = PermissionCode.objects.all()
+    serializer_class = PermissionCodeSerializer
     permission_classes = [IsSystemAdmin]

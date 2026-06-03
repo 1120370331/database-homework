@@ -10,6 +10,8 @@ from . import models
     models.ShopAssignment,
     models.Customer,
     models.Product,
+    models.ProductAttributeDefinition,
+    models.ProductAttributeValue,
     models.ProductVariant,
     models.Warehouse,
     models.Supplier,
@@ -24,8 +26,8 @@ from . import models
     models.SalesLedgerEntry,
     models.MetricDefinition,
     models.ReportQueryModel,
+    models.ReportQueryParameter,
     models.ReportQueryField,
-    models.ReportQuerySnapshot,
 )
 class DefaultAdmin(admin.ModelAdmin):
     list_per_page = 30

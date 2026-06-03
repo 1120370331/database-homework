@@ -5,6 +5,7 @@ from .views import (
     LoginView,
     LogoutView,
     MeView,
+    PermissionCodeViewSet,
     PermissionGroupViewSet,
     RefreshView,
     RegisterView,
@@ -14,6 +15,7 @@ from .views import (
 
 router = DefaultRouter()
 router.register("users", UserViewSet, basename="user")
+router.register("permission-codes", PermissionCodeViewSet, basename="permission-code")
 router.register("permission-groups", PermissionGroupViewSet, basename="permission-group")
 
 urlpatterns = [

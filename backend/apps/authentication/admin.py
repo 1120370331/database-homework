@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import LoginAuditLog, PermissionGroup, User
+from .models import LoginAuditLog, PermissionCode, PermissionGroup, User
 
 
 @admin.register(User)
@@ -18,6 +18,14 @@ class CustomUserAdmin(UserAdmin):
 class PermissionGroupAdmin(admin.ModelAdmin):
     list_display = ("id", "code", "name", "data_scope", "is_active")
     list_filter = ("data_scope", "is_active")
+    search_fields = ("code", "name")
+    filter_horizontal = ("permissions",)
+
+
+@admin.register(PermissionCode)
+class PermissionCodeAdmin(admin.ModelAdmin):
+    list_display = ("id", "code", "name", "is_active")
+    list_filter = ("is_active",)
     search_fields = ("code", "name")
 
 

@@ -54,8 +54,9 @@ class User(AbstractUser):
         permissions = set(super().get_all_permissions())
         active_groups = self.permission_groups.filter(is_active=True)
         for group in active_groups:
-            if isinstance(group.permissions, list):
-                permissions.update(str(code) for code in group.permissions if code)
+            permissions.update(
+                group.permissions.filter(is_active=True).values_list("code", flat=True)
+            )
         return sorted(permissions)
 
     def has_permission(self, permission_code):
@@ -64,11 +65,33 @@ class User(AbstractUser):
         return permission_code in self.get_permission_codes()
 
 
+class PermissionCode(models.Model):
+    code = models.CharField("权限编码", max_length=100, unique=True)
+    name = models.CharField("权限名称", max_length=128)
+    description = models.TextField("说明", blank=True)
+    is_active = models.BooleanField("是否启用", default=True)
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+    updated_at = models.DateTimeField("更新时间", auto_now=True)
+
+    class Meta:
+        verbose_name = "权限码"
+        verbose_name_plural = "权限码"
+        ordering = ["code"]
+
+    def __str__(self):
+        return self.name
+
+
 class PermissionGroup(models.Model):
     code = models.CharField("编码", max_length=64, unique=True)
     name = models.CharField("名称", max_length=128)
     description = models.TextField("说明", blank=True)
-    permissions = models.JSONField("权限标识列表", default=list, blank=True)
+    permissions = models.ManyToManyField(
+        PermissionCode,
+        verbose_name="权限码",
+        blank=True,
+        related_name="permission_groups",
+    )
     data_scope = models.CharField(
         "默认数据范围",
         max_length=32,

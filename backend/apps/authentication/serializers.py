@@ -3,10 +3,27 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import LoginAuditLog, PermissionGroup, User
+from .models import LoginAuditLog, PermissionCode, PermissionGroup, User
+
+
+class PermissionCodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PermissionCode
+        fields = [
+            "id",
+            "code",
+            "name",
+            "description",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
 
 
 class PermissionGroupSerializer(serializers.ModelSerializer):
+    permissions_detail = PermissionCodeSerializer(source="permissions", many=True, read_only=True)
+
     class Meta:
         model = PermissionGroup
         fields = [
@@ -15,6 +32,7 @@ class PermissionGroupSerializer(serializers.ModelSerializer):
             "name",
             "description",
             "permissions",
+            "permissions_detail",
             "data_scope",
             "is_active",
             "created_at",
