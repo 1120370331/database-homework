@@ -20,7 +20,7 @@
 2. 数据字典
 3. 概念模型（基本 E-R 图）
 4. 数据模型（关系模式与完整性控制）
-5. 建表代码（SQL Server）
+5. 建表代码与视图代码（SQL Server）
 6. 项目总结
 7. 参考资料
 8. 小组成员分工与合作说明
@@ -413,6 +413,8 @@ PRD-9（PRD9）后，本系统的数据库设计原则是：
 
 ### 3.1 第三范式核心 E-R 图
 
+本系统 E-R 图围绕用户权限、店铺客户、商品 SKU、采购库存、销售流水和报表查询模型展开。各实体之间通过主码和外码建立联系，避免孤立表设计。
+
 ```mermaid
 erDiagram
     SYS_USER ||--o{ SYS_USER_PERMISSION_GROUP : joins
@@ -486,6 +488,19 @@ erDiagram
 4. 为满足 3NF，本报告正式建表代码不保存客户名称快照、商品货号快照、SKU 快照、权限 JSON、报表结果 JSON 等反规范化字段。
 5. 报表结果、库存余额和金额汇总均可由正式事实表按查询条件重新计算；演示系统可以在服务层缓存查询结果，但缓存不作为本课程正式关系模式的一部分。
 
+本报告共设计 30 个核心关系模式，超过课程要求的“不少于 6 个”。其中代表性关系模式包括：
+
+1. `SYS_USER`
+2. `PRODUCT`
+3. `PRODUCT_VARIANT`
+4. `PURCHASE_ORDER`
+5. `INVENTORY_LEDGER`
+6. `SALES_DOCUMENT`
+7. `SALES_LEDGER_ENTRY`
+8. `REPORT_QUERY_MODEL`
+
+这些关系模式之间均通过主码和外码关联，例如 `PRODUCT_VARIANT.product_id -> PRODUCT.id`、`SALES_DOCUMENT.customer_id -> CUSTOMER.id`、`SALES_LEDGER_ENTRY.document_line_id -> SALES_DOCUMENT_LINE.id`。
+
 ### 4.2 系统认证与权限关系模式
 
 1. `SYS_USER(id, username, password_hash, email, phone_number, role, status, data_scope, is_staff, is_superuser, login_date, created_at, updated_at)`
@@ -511,7 +526,7 @@ erDiagram
 
 6. `SYS_USER_SHOP_SCOPE(user_id, shop_id)`
    - 主键：`user_id, shop_id`
-   - 外键：`user_id -> SYS_USER.id`，`shop_id -> SYS_SHOP.id`
+   - 外键：`user_id -> SYS_USER.id`，`shop_id -> SHOP.id`
    - 说明：用于替代用户表中的店铺列表 JSON，保证 1NF 和 3NF。
 
 7. `SYS_LOGIN_AUDIT_LOG(id, user_id, username, result, ip_address, user_agent, message, created_at)`
@@ -659,7 +674,9 @@ erDiagram
 4. 报表查询结果、导入原始载荷、快照缓存等容易破坏 1NF/3NF 的内容不进入课程提交版正式关系模式。
 
 ---
-## 5. 建表代码（SQL Server）
+## 5. 建表代码与视图代码（SQL Server）
+
+### 5.1 建表代码
 
 以下 SQL 是课程设计用的第三范式核心建表代码。建表代码只包含正式关系表，不包含 JSON 集合字段和报表结果缓存字段。
 
@@ -1136,6 +1153,132 @@ CREATE TABLE dbo.report_query_field (
 );
 GO
 ```
+
+### 5.2 视图建立代码
+
+视图用于支持前台查询和报表展示。视图只封装多表连接和聚合查询，不保存冗余数据，因此不破坏第三范式。
+
+```sql
+CREATE VIEW dbo.v_product_sku_catalog AS
+SELECT
+    p.id AS product_id,
+    p.code AS product_code,
+    p.name AS product_name,
+    p.brand,
+    p.category,
+    p.season,
+    p.status AS product_status,
+    v.id AS variant_id,
+    v.sku_code,
+    v.size,
+    v.color AS variant_color,
+    v.is_default,
+    v.is_active AS variant_active
+FROM dbo.product AS p
+LEFT JOIN dbo.product_variant AS v
+    ON v.product_id = p.id;
+GO
+
+CREATE VIEW dbo.v_inventory_balance_detail AS
+SELECT
+    b.id AS balance_id,
+    p.id AS product_id,
+    p.code AS product_code,
+    p.name AS product_name,
+    v.id AS variant_id,
+    v.sku_code,
+    w.id AS warehouse_id,
+    w.code AS warehouse_code,
+    w.name AS warehouse_name,
+    b.quantity,
+    b.last_biz_time
+FROM dbo.inventory_balance AS b
+INNER JOIN dbo.product AS p
+    ON p.id = b.product_id
+LEFT JOIN dbo.product_variant AS v
+    ON v.id = b.variant_id
+INNER JOIN dbo.warehouse AS w
+    ON w.id = b.warehouse_id;
+GO
+
+CREATE VIEW dbo.v_sales_document_detail AS
+SELECT
+    d.id AS document_id,
+    d.document_no,
+    d.document_type,
+    d.status AS document_status,
+    d.transaction_time,
+    s.name AS shop_name,
+    c.customer_code,
+    c.name AS customer_name,
+    l.line_no,
+    p.code AS product_code,
+    p.name AS product_name,
+    v.sku_code,
+    l.quantity,
+    l.unit_price,
+    l.amount
+FROM dbo.sales_document AS d
+INNER JOIN dbo.sales_document_line AS l
+    ON l.document_id = d.id
+LEFT JOIN dbo.shop AS s
+    ON s.id = d.shop_id
+LEFT JOIN dbo.customer AS c
+    ON c.id = d.customer_id
+INNER JOIN dbo.product AS p
+    ON p.id = l.product_id
+LEFT JOIN dbo.product_variant AS v
+    ON v.id = l.variant_id;
+GO
+
+CREATE VIEW dbo.v_sales_summary_by_shop_day AS
+SELECT
+    CAST(e.business_time AS DATE) AS business_date,
+    e.shop_id,
+    s.name AS shop_name,
+    SUM(e.quantity) AS total_quantity,
+    SUM(e.amount) AS total_amount
+FROM dbo.sales_ledger_entry AS e
+LEFT JOIN dbo.shop AS s
+    ON s.id = e.shop_id
+WHERE e.entry_status = N'posted'
+GROUP BY
+    CAST(e.business_time AS DATE),
+    e.shop_id,
+    s.name;
+GO
+
+CREATE VIEW dbo.v_report_query_field_config AS
+SELECT
+    m.query_code,
+    m.query_name,
+    m.report_domain,
+    m.source_fact,
+    f.field_key,
+    f.field_label,
+    f.field_role,
+    f.data_type,
+    md.metric_code,
+    md.metric_name,
+    f.sort_order
+FROM dbo.report_query_model AS m
+INNER JOIN dbo.report_query_field AS f
+    ON f.query_model_id = m.id
+LEFT JOIN dbo.metric_definition AS md
+    ON md.id = f.metric_id
+WHERE m.is_active = 1
+  AND f.is_visible = 1;
+GO
+```
+
+视图用途说明：
+
+1. `v_product_sku_catalog`：用于商品列表页和 SKU 管理页。
+2. `v_inventory_balance_detail`：用于库存余额查询页。
+3. `v_sales_document_detail`：用于销售单据详情弹窗和导出。
+4. `v_sales_summary_by_shop_day`：用于销售日报、店铺销售汇总报表。
+5. `v_report_query_field_config`：用于报表中心动态生成查询字段和展示字段。
+
 ## 6. 项目总结
 
 ### 6.1 设计过程中遇到的问题
