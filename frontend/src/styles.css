@@ -684,9 +684,20 @@ a {
   cursor: pointer;
 }
 
+.filter-chip.active {
+  border-style: solid;
+  border-color: var(--stripe-blurple);
+  background: #f1f0ff;
+  color: var(--stripe-blurple);
+}
+
 .filter-chip svg {
   color: #66758d;
   font-size: 11px;
+}
+
+.filter-chip.active svg {
+  color: var(--stripe-blurple);
 }
 
 .inline-search {
@@ -724,6 +735,49 @@ a {
 .tool-button:hover,
 .filter-chip:hover {
   border-color: #c7d1df;
+  color: var(--stripe-blurple);
+}
+
+.active-filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.active-filter-pill {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  background: #f4f3ff;
+  color: var(--stripe-blurple);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.active-filter-pill svg {
+  color: var(--stripe-blurple);
+  font-size: 11px;
+}
+
+.clear-filter-button {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: #53657d;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.clear-filter-button:hover {
   color: var(--stripe-blurple);
 }
 

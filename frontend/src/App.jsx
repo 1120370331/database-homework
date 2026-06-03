@@ -178,6 +178,33 @@ const productColumns = [
   { title: '创建时间', dataIndex: 'createdAt', width: 170 },
 ];
 
+function normalizeFilterChips(filterChips) {
+  return filterChips.map((item) => {
+    if (typeof item === 'string') {
+      return { key: item, label: item, dataIndex: item };
+    }
+    return item;
+  });
+}
+
+function getFilterValueLabel(chip, value) {
+  if (!chip?.options) {
+    return value;
+  }
+  return chip.options.find((option) => option.value === value)?.label || value;
+}
+
+function matchFilterValue(record, chip, value) {
+  if (value === undefined || value === null || value === '') {
+    return true;
+  }
+  const rawValue = record[chip.dataIndex];
+  if (chip.type === 'select' || chip.match === 'equals') {
+    return String(rawValue) === String(value);
+  }
+  return String(rawValue ?? '').toLowerCase().includes(String(value).toLowerCase());
+}
+
 function StatusBadge({ value }) {
   const className = value === '缺货' || value === '停用'
     ? 'badge badge-out-stock'
@@ -379,20 +406,27 @@ function DataListPage({
   const { message } = App.useApp();
   const [keyword, setKeyword] = useState('');
   const [activeSegment, setActiveSegment] = useState(segments[0]?.key || 'all');
+  const [fieldFilters, setFieldFilters] = useState({});
+  const [filterModal, setFilterModal] = useState(null);
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [form] = Form.useForm();
+  const [filterForm] = Form.useForm();
+
+  const filterOptions = useMemo(() => normalizeFilterChips(filterChips), [filterChips]);
+  const activeFilterEntries = filterOptions.filter((chip) => fieldFilters[chip.key]);
 
   const filteredData = useMemo(() => {
     const segment = segments.find((item) => item.key === activeSegment);
     const text = keyword.trim();
     return data
       .filter((item) => (segment?.filter ? segment.filter(item) : true))
+      .filter((item) => filterOptions.every((chip) => matchFilterValue(item, chip, fieldFilters[chip.key])))
       .filter((item) => {
         if (!text) return true;
         return Object.values(item).some((value) => String(value).includes(text));
       });
-  }, [activeSegment, data, keyword, segments]);
+  }, [activeSegment, data, fieldFilters, filterOptions, keyword, segments]);
 
   const openCreate = () => {
     setEditing({});
@@ -402,6 +436,63 @@ function DataListPage({
   const openEdit = (record) => {
     setEditing(record);
     form.setFieldsValue(record);
+  };
+
+  const openFilter = (chip, mode = 'single') => {
+    const target = chip || filterOptions[0];
+    setFilterModal({ mode, chip: target });
+    filterForm.setFieldsValue({
+      fieldKey: target.key,
+      value: fieldFilters[target.key] || undefined,
+    });
+  };
+
+  const changeAdvancedFilterField = (fieldKey) => {
+    const nextChip = filterOptions.find((chip) => chip.key === fieldKey) || filterOptions[0];
+    setFilterModal((current) => ({ ...(current || {}), chip: nextChip }));
+    filterForm.setFieldsValue({
+      fieldKey,
+      value: fieldFilters[fieldKey] || undefined,
+    });
+  };
+
+  const applyFilter = async () => {
+    const values = await filterForm.validateFields();
+    const fieldKey = values.fieldKey || filterModal?.chip?.key;
+    const chip = filterOptions.find((item) => item.key === fieldKey);
+    const value = values.value;
+    setFieldFilters((current) => {
+      const next = { ...current };
+      if (value === undefined || value === null || value === '') {
+        delete next[fieldKey];
+      } else {
+        next[fieldKey] = value;
+      }
+      return next;
+    });
+    setFilterModal(null);
+    message.success(chip ? `已筛选${chip.label}` : '已筛选');
+  };
+
+  const clearFilter = (fieldKey) => {
+    setFieldFilters((current) => {
+      const next = { ...current };
+      delete next[fieldKey];
+      return next;
+    });
+  };
+
+  const clearAllFilters = () => {
+    setFieldFilters({});
+    setKeyword('');
+  };
+
+  const renderFilterControl = (chip) => {
+    if (!chip) return null;
+    if (chip.type === 'select') {
+      return <Select placeholder={`请选择${chip.label}`} options={chip.options} allowClear />;
+    }
+    return <Input placeholder={`请输入${chip.label}`} allowClear />;
   };
 
   const saveRecord = async () => {
@@ -476,12 +567,17 @@ function DataListPage({
 
       <div className="list-tools">
         <div className="chip-row">
-          {filterChips.map((item) => (
-            <button type="button" className="filter-chip" key={item}>
-              <PlusOutlined /> {item}
+          {filterOptions.map((item) => (
+            <button
+              type="button"
+              className={`filter-chip ${fieldFilters[item.key] ? 'active' : ''}`}
+              key={item.key}
+              onClick={() => openFilter(item)}
+            >
+              <PlusOutlined /> {item.label}
             </button>
           ))}
-          <button type="button" className="filter-chip">
+          <button type="button" className="filter-chip" onClick={() => openFilter(null, 'advanced')}>
             <FilterOutlined /> 更多筛选
           </button>
           <Input
@@ -499,6 +595,21 @@ function DataListPage({
           <button type="button" className="tool-button"><SettingOutlined />编辑列</button>
         </div>
       </div>
+
+      {activeFilterEntries.length > 0 ? (
+        <div className="active-filter-row">
+          {activeFilterEntries.map((chip) => (
+            <button type="button" className="active-filter-pill" key={chip.key} onClick={() => openFilter(chip)}>
+              {chip.label}: {getFilterValueLabel(chip, fieldFilters[chip.key])}
+              <CloseOutlined onClick={(event) => {
+                event.stopPropagation();
+                clearFilter(chip.key);
+              }} />
+            </button>
+          ))}
+          <button type="button" className="clear-filter-button" onClick={clearAllFilters}>清除筛选</button>
+        </div>
+      ) : null}
 
       <div className="stripe-table-wrap">
         <Table
@@ -541,6 +652,30 @@ function DataListPage({
           ))}
         </div>
       </Modal>
+
+      <Modal
+        title={`筛选${title}`}
+        open={!!filterModal}
+        okText="应用筛选"
+        cancelText="取消"
+        onOk={applyFilter}
+        onCancel={() => setFilterModal(null)}
+        destroyOnHidden
+      >
+        <Form form={filterForm} layout="vertical">
+          {filterModal?.mode === 'advanced' ? (
+            <Form.Item label="筛选字段" name="fieldKey" rules={[{ required: true, message: '请选择筛选字段' }]}>
+              <Select
+                options={filterOptions.map((chip) => ({ label: chip.label, value: chip.key }))}
+                onChange={changeAdvancedFilterField}
+              />
+            </Form.Item>
+          ) : null}
+          <Form.Item label={filterModal?.chip?.label || '筛选值'} name="value">
+            {renderFilterControl(filterModal?.chip)}
+          </Form.Item>
+        </Form>
+      </Modal>
     </section>
   );
 }
@@ -561,7 +696,32 @@ function ProductPage({ products, setProducts }) {
         { key: 'empty', label: '缺货', filter: (item) => item.status === '缺货' },
         { key: 'focus', label: '重点 SKU', filter: (item) => Number(item.stock) <= 20 },
       ]}
-      filterChips={['SKU', '商品名称', '仓库', '状态']}
+      filterChips={[
+        { key: 'sku', label: 'SKU', dataIndex: 'sku' },
+        { key: 'name', label: '商品名称', dataIndex: 'name' },
+        {
+          key: 'warehouse',
+          label: '仓库',
+          dataIndex: 'warehouse',
+          type: 'select',
+          options: [
+            { label: '广州仓', value: '广州仓' },
+            { label: '深圳仓', value: '深圳仓' },
+            { label: '义乌仓', value: '义乌仓' },
+          ],
+        },
+        {
+          key: 'status',
+          label: '状态',
+          dataIndex: 'status',
+          type: 'select',
+          options: [
+            { label: '库存正常', value: '库存正常' },
+            { label: '库存偏低', value: '库存偏低' },
+            { label: '缺货', value: '缺货' },
+          ],
+        },
+      ]}
       notice="当前库存列表已加载外贸通样例数据，低库存与缺货条目已进入预警范围。"
       fields={[
         { label: '商品名称', name: 'name', rules: [{ required: true, message: '请输入商品名称' }] },
@@ -621,7 +781,22 @@ function UserPage({ users, setUsers }) {
         { key: 'finance', label: '财务', filter: (item) => item.role === '财务' },
         { key: 'disabled', label: '已停用', filter: (item) => item.status === '停用' },
       ]}
-      filterChips={['邮箱地址', '名称', '角色', '创建日期']}
+      filterChips={[
+        { key: 'email', label: '邮箱地址', dataIndex: 'email' },
+        { key: 'name', label: '名称', dataIndex: 'name' },
+        {
+          key: 'role',
+          label: '角色',
+          dataIndex: 'role',
+          type: 'select',
+          options: [
+            { label: '管理员', value: '管理员' },
+            { label: '运营', value: '运营' },
+            { label: '财务', value: '财务' },
+          ],
+        },
+        { key: 'createdAt', label: '创建日期', dataIndex: 'createdAt' },
+      ]}
       notice="用户数据用于登录认证、角色权限和后台操作留痕。"
       fields={[
         { label: '姓名', name: 'name', rules: [{ required: true, message: '请输入姓名' }] },
@@ -691,7 +866,22 @@ function ReportPage({ reports, setReports }) {
           { key: 'finance', label: '财务汇总', filter: (item) => item.type === '财务汇总' },
           { key: 'review', label: '待复核', filter: (item) => item.status === '待复核' },
         ]}
-        filterChips={['报表编号', '类型', '负责人', '创建日期']}
+        filterChips={[
+          { key: 'id', label: '报表编号', dataIndex: 'id' },
+          {
+            key: 'type',
+            label: '类型',
+            dataIndex: 'type',
+            type: 'select',
+            options: [
+              { label: '销售日报', value: '销售日报' },
+              { label: '库存预警', value: '库存预警' },
+              { label: '财务汇总', value: '财务汇总' },
+            ],
+          },
+          { key: 'owner', label: '负责人', dataIndex: 'owner' },
+          { key: 'createdAt', label: '创建日期', dataIndex: 'createdAt' },
+        ]}
         notice="报表查询模型覆盖销售、库存和财务汇总，便于答辩展示查询与统计能力。"
         fields={[
           { label: '报表类型', name: 'type', rules: [{ required: true, message: '请输入报表类型' }] },
