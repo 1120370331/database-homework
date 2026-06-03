@@ -1,7 +1,7 @@
-# 后端认证原型
+# Django 后端原型
 
 本目录是 `database-homework` 子仓库内的 Django 后端原型，提供
-Django REST Framework + SimpleJWT 基础认证能力。
+Django REST Framework + SimpleJWT 基础认证能力，以及外贸通业务 CRUD 接口。
 
 ## 本地启动
 
@@ -10,6 +10,7 @@ python -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements.txt
 python manage.py migrate
+python manage.py seed_demo_data
 python manage.py createsuperuser
 python manage.py runserver
 ```
@@ -32,31 +33,29 @@ python manage.py runserver
 - `DJANGO_ALLOWED_HOSTS`：逗号分隔的允许访问主机。
 - `SQLITE_DATABASE`：SQLite 数据库文件路径，默认 `db.sqlite3`。
 
-## 数据模型
+## Django 数据模型
 
 - `User`：自定义用户，包含角色、数据范围、账号状态、手机号和权限组。
 - `PermissionGroup`：权限组，维护权限标识列表和默认数据范围。
 - `LoginAuditLog`：登录、失败登录和登出审计日志。
+- `SalesPlatform / OperationTeam / Shop / ShopAssignment`：店铺平台和运营分工。
+- `Customer`：客户资料。
+- `Product / ProductVariant`：商品和 SKU。
+- `Warehouse`：仓库。
+- `Supplier / PurchaseOrder / PurchaseOrderLine`：供应商和采购订单。
+- `InventoryDocument / InventoryDocumentLine / InventoryLedger / InventoryBalance`：库存单据、库存流水和当前库存余额。
+- `SalesDocument / SalesDocumentLine / SalesLedgerEntry`：销售单据、销售明细和销售流水。
+- `MetricDefinition / ReportQueryModel / ReportQueryField / ReportQuerySnapshot`：报表指标、查询模型和查询快照。
 
-## SQL Server 数据库脚本
+课程报告仍保留 SQL Server 建表代码用于文档提交；后端实现以 Django ORM 模型和 migration 为准。
 
-课程作业要求提交 SQL Server 建表代码，完整脚本位于 `sql/`：
+可用以下命令写入演示数据：
 
-- `sql/01_schema.sql`：创建 `ForeignTradeConnectDB` 数据库和完整后台表结构。
-- `sql/02_seed_data.sql`：插入答辩演示样例数据。
-- `sql/README.md`：说明执行顺序、表覆盖范围和样例数据内容。
-
-执行顺序：
-
-```sql
--- 1. 先执行
-sql/01_schema.sql
-
--- 2. 再执行
-sql/02_seed_data.sql
+```powershell
+python manage.py seed_demo_data
 ```
 
-`01_schema.sql` 覆盖认证权限、店铺客户、商品 SKU、仓库库存、采购订单、销售订单、价格成本、财务事实、报表查询模型和外部数据迁移等核心后台模型。Django 原型当前使用 SQLite 便于本地演示，课程数据库后台以 SQL Server 脚本为准。
+该命令会通过 Django ORM 创建演示管理员、店铺、客户、商品、SKU、仓库、供应商、采购订单、库存单据、销售订单和报表查询模型。
 
 ## API 简表
 
@@ -75,6 +74,22 @@ sql/02_seed_data.sql
 - `GET /api/auth/permission-groups/{id}/`：查询单个权限组。
 - `PUT/PATCH /api/auth/permission-groups/{id}/`：更新权限组。
 - `DELETE /api/auth/permission-groups/{id}/`：删除权限组。
+- `GET/POST /api/operations/products/`：商品 CRUD。
+- `GET/POST /api/operations/product-variants/`：SKU CRUD。
+- `GET/POST /api/operations/warehouses/`：仓库 CRUD。
+- `GET/POST /api/operations/customers/`：客户 CRUD。
+- `GET/POST /api/operations/purchase-orders/`：采购订单 CRUD。
+- `GET/POST /api/operations/inventory-documents/`：库存单据 CRUD。
+- `GET/POST /api/operations/inventory-balances/`：当前库存查询。
+- `GET/POST /api/operations/sales-documents/`：销售单据 CRUD。
+- `GET/POST /api/operations/report-query-models/`：报表查询模型 CRUD。
+
+业务 CRUD 列表接口支持基础查询参数：
+
+- `search=关键词`：在字符、文本、邮箱和 URL 字段中模糊搜索。
+- `字段名=值`：按模型字段精确过滤，例如 `status=posted`。
+- `外键_id=值`：按外键过滤，例如 `shop_id=1`、`product_id=1`。
+- `ordering=字段名` 或 `ordering=-字段名`：排序，例如 `ordering=-created_at`。
 
 登录接口会返回扁平化 `permissions`、`role` 和 `data_scope`，用于前台做基础菜单和按钮控制。
 除注册、登录和刷新令牌接口外，默认需要在请求头携带：
